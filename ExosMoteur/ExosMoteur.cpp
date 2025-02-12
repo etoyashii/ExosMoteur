@@ -365,8 +365,9 @@ LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
-int main()
+ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
+	 
 	WNDCLASS wc;
 	wc.style = CS_HREDRAW | CS_VREDRAW;
 	wc.lpfnWndProc = MsgProc;
@@ -378,6 +379,7 @@ int main()
 	wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
 	wc.lpszMenuName = 0;
 	wc.lpszClassName = L"MainWnd";
+	prevInstance = 0;
 
 	if (!RegisterClass(&wc))
 	{
@@ -398,8 +400,9 @@ int main()
 		MessageBox(0, L"CreateWindow Failed.", 0, 0);
 		return false;
 	}
-
+	
 	ShowWindow(mhMainWnd, SW_SHOW);
+	
 	UpdateWindow(mhMainWnd);
 	ID3D12Debug* debugController;
 	D3D12GetDebugInterface(IID_PPV_ARGS(&debugController));
@@ -493,16 +496,7 @@ int main()
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	dsvHeapDesc.NodeMask = 0;
 	md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap));
+	
 
 }
 
-// Exécuter le programme : Ctrl+F5 ou menu Déboguer > Exécuter sans débogage
-// Déboguer le programme : F5 ou menu Déboguer > Démarrer le débogage
-
-// Astuces pour bien démarrer : 
-//   1. Utilisez la fenêtre Explorateur de solutions pour ajouter des fichiers et les gérer.
-//   2. Utilisez la fenêtre Team Explorer pour vous connecter au contrôle de code source.
-//   3. Utilisez la fenêtre Sortie pour voir la sortie de la génération et d'autres messages.
-//   4. Utilisez la fenêtre Liste d'erreurs pour voir les erreurs.
-//   5. Accédez à Projet > Ajouter un nouvel élément pour créer des fichiers de code, ou à Projet > Ajouter un élément existant pour ajouter des fichiers de code existants au projet.
-//   6. Pour rouvrir ce projet plus tard, accédez à Fichier > Ouvrir > Projet et sélectionnez le fichier .sln.
