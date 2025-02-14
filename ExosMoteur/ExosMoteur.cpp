@@ -65,6 +65,19 @@ void OnMouseDown(WPARAM btnState, int x, int y) { }
 void OnMouseUp(WPARAM btnState, int x, int y) { }
 void OnMouseMove(WPARAM btnState, int x, int y) { }
 
+D3D12_CPU_DESCRIPTOR_HANDLE CurrentBackBufferView()
+{
+	return CD3DX12_CPU_DESCRIPTOR_HANDLE(
+		mRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+		mCurrBackBuffer,
+		mRtvDescriptorSize);
+}
+
+D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()
+{
+	return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+}
+
 void FlushCommandQueue()
 {
 	// Advance the fence value to mark commands up to this fence point.
@@ -143,7 +156,7 @@ void OnResize()
 		DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH);
 
 	mCurrBackBuffer = 0;
-
+	//create render target view.
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
 	for (UINT i = 0; i < SwapChainBufferCount; i++)
 	{
@@ -365,6 +378,59 @@ LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
 	return DefWindowProc(hwnd, msg, wParam, lParam);
 }
+
+const float  LightGreen[4] = {0.564705908f, 0.933333397f, 0.564705908f, 1.0f};
+
+
+void Draw(const GameTimer& gt)
+{
+	CD3DX12_RESOURCE_BARRIER bar = CD3DX12_RESOURCE_BARRIER::Transition(mSwapChainBuffer[mCurrBackBuffer],D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	D3D12_CPU_DESCRIPTOR_HANDLE view = CurrentBackBufferView();
+
+
+	D3D12_CPU_DESCRIPTOR_HANDLE v = mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+	// Reuse the memory associated with command recording.
+	// We can only reset when the associated command lists have finished execution on the GPU.
+	mDirectCmdListAlloc->Reset();
+
+	// A command list can be reset after it has been added to the command queue via ExecuteCommandList.
+	// Reusing the command list reuses memory.
+	mCommandList->Reset(mDirectCmdListAlloc, nullptr);
+
+	// Indicate a state transition on the resource usage.
+	mCommandList->ResourceBarrier(1, &bar);
+
+	// Set the viewport and scissor rect.  This needs to be reset whenever the command list is reset.
+	mCommandList->RSSetViewports(1, &mScreenViewport);
+	mCommandList->RSSetScissorRects(1, &mScissorRect);
+
+	// Clear the back buffer and depth buffer.
+	mCommandList->ClearRenderTargetView(view, LightGreen, 0, nullptr);
+	mCommandList->ClearDepthStencilView(v, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 0, nullptr);
+
+	// Specify the buffers we are going to render to.
+	mCommandList->OMSetRenderTargets(1, &view, true, &v);
+
+	// Indicate a state transition on the resource usage.
+	mCommandList->ResourceBarrier(1, &bar);
+
+	// Done recording commands.
+	mCommandList->Close();
+
+	// Add the command list to the queue for execution.
+	ID3D12CommandList* cmdsLists[] = { mCommandList };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	// swap the back and front buffers
+	mSwapChain->Present(0, 0);
+	mCurrBackBuffer = (mCurrBackBuffer + 1) % SwapChainBufferCount;
+
+	// Wait until frame commands are complete.  This waiting is inefficient and is
+	// done for simplicity.  Later we will show how to organize our rendering code
+	// so we do not have to wait per frame.
+	FlushCommandQueue();
+}
  int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE prevInstance, PSTR cmdLine, int showCmd)
 {
 	 
@@ -457,7 +523,7 @@ LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	// to the command list we will Reset it, and it needs to be closed before
 	// calling Reset.
 	mCommandList->Close();
-
+	
 	//Create Swap Chain
 	mSwapChain = nullptr;
 
@@ -488,15 +554,29 @@ LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	rtvHeapDesc.NodeMask = 0;
 	md3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(&mRtvHeap));
-	return 0;
-
+	
+	
 	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
-	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.NumDescriptors = 1;{}
 	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	dsvHeapDesc.NodeMask = 0;
 	md3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(&mDsvHeap));
-	
+	OnResize();
+	MSG msg = { 0 };
+
+	while (msg.message != WM_QUIT)
+	{   // le peek doit etre dans une boucle pour traiter tous les messages en attente avant de passer à votre frame
+		while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+		UpdateWindow(mhMainWnd);
+		Draw(mTimer);
+	}
+
+	return 0;
 
 }
 
